@@ -62,12 +62,14 @@ app.delete('/api/persons/:id', (request, response, next) => {
     .catch(error => next(error))
 })
 
-app.get('/info', (request, response) => {
+app.get('/info', (request, response, next) => {
   const now = new Date();
-  response.send(`<p>Phonebook has info for ${persons.length} people</p> <p>${now.toString()}</p>`)
+  Person.countDocuments().then(count => { 
+    response.send(`<p>Phonebook has info for ${count} people</p> <p>${now.toString()}</p>`)
+  })
 })
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
   const body = request.body
 
   if (body.name === undefined) {
@@ -84,21 +86,27 @@ app.post('/api/persons', (request, response) => {
 
   Person.findOne({ name: body.name }).then(person => {
     if (person) {
-      return response.status(400).json({ 
-        error: 'name must be unique' 
+      const updatedPerson = new Person({
+        name: body.name,
+        number: body.number,
       })
-    }
-    else {
-      const updatedPerson = {
-      name: body.name,
-      number: body.number,
-      }
-
-      Person.findByIdAndUpdate(person._id, updatedPerson, { new: true })
+      Person.findByIdAndUpdate(updatedPerson, { new: true })
       .then(updatedPerson => {
         response.json(updatedPerson)
       })
       .catch(error => next(error))
+    }
+    else {
+      const newPerson = new Person({
+        name: body.name,
+        number: body.number,
+      })
+
+      newPerson.save()
+        .then(savedPerson => {
+          response.json(savedPerson)
+        })
+        .catch(error => next(error))
     }
   })
 })
