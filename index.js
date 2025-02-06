@@ -1,6 +1,7 @@
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
+require('dotenv').config()
 const app = express()
 app.use(express.json())
 app.use(express.static('dist'))
@@ -11,6 +12,8 @@ morgan.token('req-body', function (req, res) {
   }
 })
 app.use(cors())
+
+const Person = require('./models/person')
 
 let persons = [
     { 
@@ -40,19 +43,15 @@ app.get('/', (request, response) => {
 })
 
 app.get('/api/persons', (request, response) => {
+  Person.find({}).then(persons => {
     response.json(persons)
+  })
 })
 
 app.get('/api/persons/:id', (request, response) => {
-    const id = request.params.id
-    const person = persons.find(person => person.id === id)
-
-
-    if (person) {
-        response.json(person)
-    } else {
-        response.status(404).end()
-    }
+  Person.findById(request.params.id).then(person => {
+    response.json(person)
+  })
 })
 
 app.delete('/api/persons/:id', (request, response) => {
@@ -67,23 +66,16 @@ app.get('/info', (request, response) => {
   response.send(`<p>Phonebook has info for ${persons.length} people</p> <p>${now.toString()}</p>`)
 })
 
-const generateId = () => {
-  const min = 0;
-  const max = 1000;
-  const id = Math.floor(Math.random() * (max - min) + min);
-  return String(id);
-}
-
 app.post('/api/persons', (request, response) => {
   const body = request.body
 
-  if (!body.name) {
+  if (body.name === undefined) {
     return response.status(400).json({ 
       error: 'name missing' 
     })
   }
 
-  if (!body.number) {
+  if (body.number === undefined) {
     return response.status(400).json({ 
       error: 'number missing' 
     })
@@ -101,15 +93,14 @@ app.post('/api/persons', (request, response) => {
     })
   }
 
-  const person = {
-    id: generateId(),
+  const person = new Person({
     name: body.name,
     number: body.number,
-  }
+  })
 
-  persons = persons.concat(person)
-
-  response.json(person)
+  person.save().then(savedNote => {
+    response.json(savedNote)
+  })
 })
 
 const PORT = process.env.PORT || 3001
