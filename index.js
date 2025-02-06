@@ -54,11 +54,12 @@ app.get('/api/persons/:id', (request, response) => {
   })
 })
 
-app.delete('/api/persons/:id', (request, response) => {
-  const id = request.params.id
-  persons = persons.filter(person => person.id !== id)
-
-  response.status(204).end()
+app.delete('/api/persons/:id', (request, response, next) => {
+  Person.findByIdAndDelete(request.params.id)
+    .then(result => {
+      response.status(204).end()
+    })
+    .catch(error => next(error))
 })
 
 app.get('/info', (request, response) => {
@@ -81,29 +82,66 @@ app.post('/api/persons', (request, response) => {
     })
   }
 
-  if (persons.some(person => person.name === body.name)) {
-    return response.status(400).json({ 
-      error: 'name must be unique' 
-    })
+  Person.findOne({ name: body.name }).then(person => {
+    if (person) {
+      return response.status(400).json({ 
+        error: 'name must be unique' 
+      })
+    }
+    else {
+      const updatedPerson = {
+      name: body.name,
+      number: body.number,
+      }
+
+      Person.findByIdAndUpdate(person._id, updatedPerson, { new: true })
+      .then(updatedPerson => {
+        response.json(updatedPerson)
+      })
+      .catch(error => next(error))
+    }
+  })
+})
+
+app.put('/api/persons/:id', (req, res, next) => {
+  const id = req.params.id
+
+  const entry = {
+    name: req.body.name,
+    number: req.body.number,
   }
 
-  if (persons.some(person => person.number === body.number)) {
-    return response.status(400).json({ 
-      error: 'number already exists in phonebook'
+  Person.findByIdAndUpdate(id, entry, { new: true })
+    .then((updatedEntry) => {
+      if (updatedEntry) {
+        res.json(updatedEntry.toJSON())
+      } else {
+        res.status(404).end()
+      }
     })
-  }
-
-  const person = new Person({
-    name: body.name,
-    number: body.number,
-  })
-
-  person.save().then(savedNote => {
-    response.json(savedNote)
-  })
+    .catch((error) => next(error))
 })
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+app.use(unknownEndpoint);
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+
+  next(error)
+}
+
+// this has to be the last loaded middleware, also all the routes should be registered before this!
+app.use(errorHandler)
